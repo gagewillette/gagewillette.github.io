@@ -3,3 +3,37 @@ body{
     background-repeat: repeat-x;
     background-attachment: fixed;
 }
+
+h1{
+    font-family: 'Roboto' , sans-serif;
+    text-align: center;
+    font-size: 70px;
+    margin-top: 30px;
+    color: lightgray;
+}
+
+p {
+    font-family: 'Roboto Condensed', sans-serif;
+    color: lightgray;
+    word-wrap: normal;
+    text-align: center;
+    font-size: 30px;
+}
+
+.javap{
+    width: 1000px;
+    padding-left: 23.5%;
+}
+
+.images{
+    margin-left: 37.5%;
+}
+
+.blockpic{
+    padding-right: 50px;
+}
+
+.spigotpic{
+    padding-left: 50px;
+}
+
