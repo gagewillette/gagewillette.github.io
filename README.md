@@ -1,4 +1,4 @@
-# [Your Name]'s GitHub Pages Site
+# Gage Willettes's GitHub Pages Site
 
 Welcome to the repository for my personal GitHub Pages site. This project is a showcase of my skills and interests in web development, and it's also my first foray into using TypeScript.
 
