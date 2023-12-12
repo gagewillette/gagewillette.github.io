@@ -9,7 +9,7 @@ export default function HeadshotText() {
   const theme = useTheme();
 
   let cardStyles = {
-    transition: "all 0.3s ease",
+    transition: "all 0.4s 0.5s ease",
     maxWidth: {
       xs: "90vw",
       sm: "90vw",

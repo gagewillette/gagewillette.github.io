@@ -1,9 +1,12 @@
 @use "./main.scss";
 
+//vars
+$header-margin: 20px;
+
 //contianer styles
 .header-container {
-  
-  margin-top: 20px;
+  margin-bottom: $header-margin;
+  margin-top: $header-margin;
 }
 
 .buttons-container {
