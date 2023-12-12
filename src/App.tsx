@@ -1,14 +1,25 @@
-import React from 'react';
-import { Box, colors } from '@mui/material';
+import React from "react";
 import Header from "./ts/header";
+import "./scss/main.scss";
+import { createTheme, ThemeProvider } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
+
+import "@fontsource/open-sans";
+
+const theme = createTheme({
+  typography: {
+    fontFamily: ["Open Sans", "sans-serif"].join(","),
+  },
+});
 
 function App() {
-
   return (
     <>
-      <Header />
+      <ThemeProvider theme={theme}>
+        <Header />
+      </ThemeProvider>
     </>
-  )
+  );
 }
 
-export default App
+export default App;

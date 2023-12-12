@@ -1,11 +1,13 @@
+@use "./main.scss";
+
 //contianer styles
-.header-container 
-{
+.header-container {
+  
   margin-top: 20px;
 }
 
-.buttons-container 
-{
+.buttons-container {
+  font-family: main.$font;
   display: flex;
   flex-direction: row;
   justify-content: center;

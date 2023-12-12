@@ -15,7 +15,7 @@ export default function MaterialButton(props: ButtonProps) {
   }
 
   return (
-    <Button onClick={handleButtonClick} variant="text" size="large" sx={{color: "white"}}>
+    <Button onClick={handleButtonClick} variant="text" size="large" sx={{color: "white" , fontWeight: 300}}>
       {text}
     </Button>
   );
