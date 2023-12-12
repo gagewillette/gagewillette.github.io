@@ -1,4 +1,3 @@
-import React, { Component } from "react";
 import { Button } from "@mui/material";
 
 type ButtonProps = {
@@ -15,7 +14,7 @@ export default function MaterialButton(props: ButtonProps) {
   }
 
   return (
-    <Button onClick={handleButtonClick} variant="text" size="large" sx={{color: "white" , fontWeight: 300}}>
+    <Button onClick={handleButtonClick} variant="text" disabled={isDisabled} size="large" sx={{color: "white" , fontWeight: 300}}>
       {text}
     </Button>
   );
