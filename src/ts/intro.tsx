@@ -1,13 +1,15 @@
 import Headshot from "./comps/headshot";
-import HeadshotText from "./comps/headshotText";
+import BackgroundText from "./comps/backgroundText";
+import Lines from "./comps/lines";
 import "../scss/intro.scss"
 
 export default function Intro() {
   return (
     <>
       <div className="headshot-elements">
+        <BackgroundText />
+        <Lines />
         <Headshot />
-        <HeadshotText />
       </div>
     </>
   );
