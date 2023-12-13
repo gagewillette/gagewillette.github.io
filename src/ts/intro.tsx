@@ -8,7 +8,7 @@ export default function Intro() {
     <>
       <div className="headshot-elements">
         <BackgroundText />
-        <Lines />
+        {/* <Lines />  NOT SURE IF I LIKE THIS OR NOT */}
         <Headshot />
       </div>
     </>

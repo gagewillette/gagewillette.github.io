@@ -2,7 +2,8 @@
   position: relative;
   width: 100%; /* Adjust as needed */
   height: 100%;
-top: -150px
+  top: -150px;
+  z-index: -2;
 }
 
 .line-1 {
