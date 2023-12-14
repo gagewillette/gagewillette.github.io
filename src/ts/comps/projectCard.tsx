@@ -8,7 +8,9 @@ interface ProjectCardProps
 
 export default function ProjectCard(props: ProjectCardProps) 
 {
-    { name , description } = props;
+    const { name , description } = props;
 
+
+    console.log(name + description)
 
 }
