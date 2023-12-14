@@ -7,12 +7,13 @@ $header-margin: 20px;
 .header-container {
   margin-bottom: $header-margin;
   margin-top: $header-margin;
+  margin-left: $header-margin * 2;
 }
 
 .buttons-container {
   font-family: main.$font;
   display: flex;
   flex-direction: row;
-  justify-content: center;
+  justify-content: start;
   align-items: center;
 }

@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
-import headshotDesktop from "/assets/KW30-desktop.png";
-import headshotMobile from "/assets/KW30-mobile.png"; // Replace with your mobile-sized image path
+import { useState, useEffect } from "react";
+import headshotDesktop from "../../assets/KW30-desktop-transparent.png";
 import "../../scss/headshot.scss";
 
 export default function Headshot() {
@@ -17,22 +16,21 @@ export default function Headshot() {
       }
     };
 
-    window.addEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
 
     // Call handler right away so state gets updated with initial window size
     handleResize();
 
     // Remove event listener on cleanup
-    return () => window.removeEventListener('resize', handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   return (
     <>
-      <div className="headshot">
-        <img
-          src={currentImage}
-          alt="headshot picture"
-        />
+      <div className="headshot-container">
+        <div className="headshot">
+          <img src={currentImage} alt="headshot picture" />
+        </div>
       </div>
     </>
   );

@@ -1,0 +1,48 @@
+.lines {
+  position: relative;
+  width: 100%; /* Adjust as needed */
+  height: 100%;
+  top: -150px;
+  z-index: -2;
+}
+
+.line-1 {
+  stroke-width: 10px;
+  stroke: #0ec1fa;
+  filter: drop-shadow(0px 4px 4px rgba(0, 0, 0, 0.25));
+  width: 1999px;
+  height: 902.201px;
+  flex-shrink: 0;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -35%);
+}
+
+.line-2 {
+  stroke-width: 6px;
+  stroke: #0ec1fa;
+  filter: drop-shadow(0px 4px 4px rgba(0, 0, 0, 0.25));
+  width: 1999px;
+  height: 908.53px;
+  flex-shrink: 0;
+  flex-shrink: 0;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -37%);
+}
+
+.line-3 {
+  stroke-width: 6px;
+  stroke: #0ec1fa;
+  filter: drop-shadow(0px 4px 4px rgba(0, 0, 0, 0.25));
+  width: 1999px;
+  height: 908.377px;
+  flex-shrink: 0;
+  flex-shrink: 0;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -39%);
+}
