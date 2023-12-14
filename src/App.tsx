@@ -1,5 +1,6 @@
 import Intro from "./ts/intro";
 import Header from "./ts/header";
+import Body from "./ts/body";
 import "./scss/main.scss";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
 
@@ -32,6 +33,8 @@ function App() {
         <Header />
 
         <Intro />
+
+        <Body />
       </ThemeProvider>
     </>
   );
