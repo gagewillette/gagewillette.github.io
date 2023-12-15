@@ -1,0 +1,60 @@
+.headshot-container {
+  display: flex;
+  justify-content: center;
+  z-index: 1;
+  position: absolute;
+  top: 50%;           // Adjust these values as needed to position the headshot
+  left: 50%;          // over the BackgroundText
+  transform: translate(-50%, -42%); 
+}
+
+.headshot {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 1000px;
+  width: 700px;
+  z-index: inherit;
+}
+
+.headshot img {
+  height: 100%;
+  width: 100%;
+  flex-shrink: 0;
+  object-fit: cover;
+  z-index: inherit;
+}
+
+@media screen and (max-width: 600px) {
+  .headshot {
+    width: 100%;
+    max-width: 90vw; /* This is the maximum width of the div */
+    height: 400px; /* Fixed height of the div */
+    position: relative; /* Allows absolute positioning of the child img */
+    overflow: hidden; /* Ensures no part of the image spills outside the div */
+  }
+
+  .headshot img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* This makes the image cover the div */
+    position: absolute; /* Positions the image absolutely within the div */
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .headshot {
+    width: 100%;
+    max-width: 90vw; /* This is the maximum width of the div */
+    height: 300px; /* Fixed height of the div */
+    position: relative; /* Allows absolute positioning of the child img */
+    overflow: hidden; /* Ensures no part of the image spills outside the div */
+  }
+
+  .headshot img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* This makes the image cover the div */
+    position: absolute; /* Positions the image absolutely within the div */
+  }
+}
