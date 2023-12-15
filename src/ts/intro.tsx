@@ -1,7 +1,7 @@
 import Headshot from "./comps/headshot";
 import BackgroundText from "./comps/backgroundText";
 
-import "../scss/intro.scss"
+import "../scss/intro.scss";
 
 export default function Intro() {
   return (

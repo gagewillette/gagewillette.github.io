@@ -1,9 +1,13 @@
-import Projects from "./comps/projects"
+import Projects from "./comps/projects";
 
-export default function Body() 
-{
-    return <>
-            <Projects />
-
-        </>
+export default function Body() {
+  return (
+    <>
+      <div className="body">
+        <body>
+          <Projects />
+        </body>
+      </div>
+    </>
+  );
 }
