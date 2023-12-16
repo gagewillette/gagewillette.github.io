@@ -9,7 +9,7 @@ export default function Intro() {
       <div className="headshot-elements">
         <BackgroundText />
         {/* <Lines />  NOT SURE IF I LIKE THIS OR NOT */}
-        <Headshot />
+        <Headshot /> 
       </div>
     </>
   );
