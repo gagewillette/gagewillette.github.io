@@ -1,4 +1,27 @@
-.headshot-elements
-{
-    min-height: 100vh;
+.headshot-elements {
+  min-height: 250px;
+}
+
+@media screen and (min-width: 600px) {
+  .headshot-elements {
+    min-height: 450px;
+  }
+}
+
+@media screen and (min-width: 900px) {
+    .headshot-elements {
+        min-height: 550px;
+      }
+}
+
+@media screen and (min-width: 1200px) {
+    .headshot-elements {
+        min-height: 800px;
+      }
+}
+
+@media screen and (min-width: 1536px) {
+    .headshot-elements {
+        min-height: 1030px;
+      }
 }

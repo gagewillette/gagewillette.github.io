@@ -1,11 +1,11 @@
-import Projects from "./comps/projects";
+import HelloText from "./comps/helloText";
 
 export default function Body() {
   return (
     <>
       <div className="body">
         <body>
-          <Projects />
+          <HelloText />
         </body>
       </div>
     </>

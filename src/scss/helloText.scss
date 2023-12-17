@@ -1,0 +1,82 @@
+.hello-texts {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: fadeInUp 1s ease forwards;
+}
+
+.hello-text h2,
+.hello-subtext h3 {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hello-text h2 {
+  font-size: 2rem;
+  margin: 0;
+}
+
+.hello-subtext h3 {
+  font-size: 0.7rem;
+  margin: 0;
+}
+
+@media screen and (min-width: 600px) {
+  .hello-text h2 {
+    font-size: 3rem;
+    margin: 0;
+  }
+
+  .hello-subtext h3 {
+    font-size: 1.7rem;
+    margin: 0;
+  }
+}
+
+@media screen and (min-width: 900px) {
+  .hello-text h2 {
+    font-size: 4rem;
+    margin: 0;
+  }
+
+  .hello-subtext h3 {
+    font-size: 2.7rem;
+    margin: 0;
+  }
+}
+
+@media screen and (min-width: 1200px) {
+  .hello-text h2 {
+    font-size: 5rem;
+    margin: 0;
+  }
+
+  .hello-subtext h3 {
+    font-size: 3.7rem;
+    margin: 0;
+  }
+}
+
+@media screen and (min-width: 1536px) {
+  .hello-text h2 {
+    font-size: 6rem;
+    margin: 0;
+  }
+
+  .hello-subtext h3 {
+    font-size: 4.7rem;
+    margin: 0;
+  }
+}
