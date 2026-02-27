@@ -4,7 +4,6 @@ import CardMedia from "@mui/material/CardMedia";
 import Typography from "@mui/material/Typography";
 import { CardActionArea } from "@mui/material";
 import InkDigital from "../../assets/ink.png"
-import { useTheme } from "@emotion/react";
 interface ProjectCardProps {
   name: string;
   description: string;
@@ -13,7 +12,6 @@ interface ProjectCardProps {
 
 export default function ProjectCard(props: ProjectCardProps) {
 
-    const theme = useTheme();
     const {name, description } = props;
 
   return (

@@ -1,40 +1,89 @@
-# Gage Willettes's GitHub Pages Site
+# gagewillette.github.io
 
-Welcome to the repository for my personal GitHub Pages site. This project is a showcase of my skills and interests in web development, and it's also my first foray into using TypeScript.
+Personal developer blog built with React + Vite.
 
-## Technical Overview
+## What this site is now
 
-This site is developed using several modern web technologies and tools. Here's a brief overview of the main components:
+This repository is set up as a clean, readable developer blog with:
 
-### Built with React
+- Home page for latest writing and project log entries.
+- Posts index with category filters (`project` and `life`).
+- Individual post pages.
+- About page.
+- Protected new-post route (`#/new` and `/new`) with Firebase Auth email/password login.
+- Firebase Firestore-backed posts (with local seed fallback when Firebase is not configured).
+- Hash-based routes for GitHub Pages compatibility (`#/posts`, `#/post/<slug>`, etc.).
 
-- **React**: The site is built using React, a powerful JavaScript library for building user interfaces. React's component-based architecture makes it an excellent choice for this kind of project.
+## Local development
 
-### TypeScript Integration
+```bash
+npm install
+npm run dev
+```
 
-- **TypeScript**: This project marks my first use of TypeScript. TypeScript is a superset of JavaScript that adds static types, enhancing code quality and understandability.
+## Firebase setup
 
-### Styled with SASS
+Copy `.env.example` to `.env` and fill in your Firebase values:
 
-- **SASS**: For styling, the site utilizes SASS (Syntactically Awesome Style Sheets). SASS is a preprocessor scripting language that is interpreted or compiled into CSS, offering more flexibility and maintainability for the stylesheets.
+```bash
+cp .env.example .env
+```
 
-### Deployment via GitHub Actions
+Required:
 
-- **GitHub Actions**: Automated deployment is achieved through GitHub Actions. This CI/CD tool automatically builds and deploys the website to GitHub Pages whenever changes are pushed to the repository.
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+- `VITE_FIREBASE_MEASUREMENT_ID` (optional for Analytics features)
 
-## Development and Build Process
+## Firestore data model
 
-The development of this site involved several key steps:
+Collection: `posts`  
+Document id: `slug`
 
-1. **Design and Planning**: The initial phase focused on designing the layout and planning the content structure.
-2. **React Development**: Building the site's components and pages using React.
-3. **TypeScript Integration**: Implementing TypeScript to add type safety and enhance code quality.
-4. **Styling with SASS**: Applying styles using SASS for a more manageable and sophisticated styling process.
-5. **Testing and Debugging**: Ensuring the site's functionality across different browsers and devices.
-6. **Automated Deployment**: Configuring GitHub Actions to automate the deployment process.
+Document shape:
 
-## Contributions and Feedback
+```ts
+{
+  slug: string;
+  title: string;
+  excerpt: string;
+  category: "project" | "life";
+  date: "YYYY-MM-DD";
+  tags: string[];
+  blocks: Array<
+    | { type: "paragraph"; text: string }
+    | { type: "heading"; text: string }
+    | { type: "list"; items: string[] }
+    | { type: "quote"; text: string }
+    | { type: "code"; code: string; language?: string }
+  >;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+```
 
-I'm always open to feedback and contributions to improve the site. Feel free to create an issue or submit a pull request if you have suggestions or improvements.
+## Production build
 
-Thank you for visiting my project!
+```bash
+npm run build
+npm run preview
+```
+
+## How to publish a new post
+
+1. Open `#/new` (on GitHub Pages this is the canonical route; direct `/new` is redirected to it).
+2. Log in with Firebase Auth email/password.
+3. Fill out title, slug, excerpt, category, date, tags, and content blocks.
+4. Click `Publish Post`.
+
+The app validates and normalizes slug/tags/blocks before writing to Firestore.
+
+## Deployment
+
+This is a Vite app, so deploy the `dist` directory.
+
+If you use `gh-pages`, the command should target `dist`.
