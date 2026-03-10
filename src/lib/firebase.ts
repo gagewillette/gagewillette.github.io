@@ -12,7 +12,16 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
-const hasRequiredFirebaseConfig = Object.values(firebaseConfig).every((value) => Boolean(value));
+const requiredFirebaseConfigValues = [
+  firebaseConfig.apiKey,
+  firebaseConfig.authDomain,
+  firebaseConfig.projectId,
+  firebaseConfig.storageBucket,
+  firebaseConfig.messagingSenderId,
+  firebaseConfig.appId,
+];
+
+const hasRequiredFirebaseConfig = requiredFirebaseConfigValues.every((value) => Boolean(value));
 
 let firebaseApp: FirebaseApp | null = null;
 let firestoreDb: Firestore | null = null;

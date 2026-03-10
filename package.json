@@ -13,6 +13,7 @@
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
+    "codex": "^0.2.3",
     "firebase": "^12.10.0",
     "gh-pages": "^6.1.0",
     "react": "^18.2.0",
