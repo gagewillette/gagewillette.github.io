@@ -11,7 +11,7 @@ This repository is set up as a clean, readable developer blog with:
 - Individual post pages.
 - About page.
 - Protected new-post route (`#/new` and `/new`) with Firebase Auth email/password login.
-- Firebase Firestore-backed posts (with local seed fallback when Firebase is not configured).
+- Firebase Firestore-backed posts for both reading and publishing.
 - Hash-based routes for GitHub Pages compatibility (`#/posts`, `#/post/<slug>`, etc.).
 
 ## Local development
@@ -38,6 +38,8 @@ Required:
 - `VITE_FIREBASE_MESSAGING_SENDER_ID`
 - `VITE_FIREBASE_APP_ID`
 - `VITE_FIREBASE_MEASUREMENT_ID` (optional for Analytics features)
+
+If those values are present, the app reads blog posts from the Firestore `posts` collection and the `/new` route publishes directly into that same collection.
 
 ## Firestore data model
 

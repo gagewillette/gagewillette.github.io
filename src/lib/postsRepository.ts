@@ -1,5 +1,5 @@
 import { collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, setDoc } from "firebase/firestore";
-import { posts as seedPosts, type BlogPost, type PostBlock, type PostCategory } from "../content/posts";
+import { posts as fallbackPosts, type BlogPost, type PostBlock, type PostCategory } from "../content/posts";
 import { db, isFirebaseConfigured } from "./firebase";
 
 type UnknownRecord = Record<string, unknown>;
@@ -170,7 +170,7 @@ const ensureValidPostInput = (input: CreatePostInput): BlogPost => {
 
 export const fetchPosts = async (): Promise<BlogPost[]> => {
   if (!isFirebaseConfigured || !db) {
-    return sortPostsByDate(seedPosts);
+    return sortPostsByDate(fallbackPosts);
   }
 
   const snapshot = await getDocs(query(collection(db, postsCollectionName), orderBy("date", "desc")));
