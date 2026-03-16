@@ -1,6 +1,7 @@
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
+import { isEditorAccessAllowed } from "./editorEnvironment";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -30,7 +31,7 @@ let firebaseAuth: Auth | null = null;
 if (hasRequiredFirebaseConfig) {
   firebaseApp = getApps()[0] ?? initializeApp(firebaseConfig);
   firestoreDb = getFirestore(firebaseApp);
-  firebaseAuth = getAuth(firebaseApp);
+  firebaseAuth = isEditorAccessAllowed ? getAuth(firebaseApp) : null;
 }
 
 export const isFirebaseConfigured = hasRequiredFirebaseConfig;

@@ -7,10 +7,14 @@ import {
   normalizeTags,
   slugify,
   sortPostsByDate,
+  updatePost,
   type CreatePostInput,
 } from "./lib/postsRepository";
 import {
+  editorAccessDeniedMessage,
   getEditorSession,
+  isEditorAccessAllowed,
+  isFirebaseAuthConfigured,
   isFirebaseAuthEnabled,
   signInEditor,
   signOutEditor,
@@ -22,11 +26,13 @@ type Route =
   | { view: "posts" }
   | { view: "about" }
   | { view: "new" }
+  | { view: "edit"; slug: string }
   | { view: "post"; slug: string }
   | { view: "not-found" };
 type Theme = "light" | "dark";
 type PostsStatus = "loading" | "ready" | "error";
 type BlockKind = PostBlock["type"];
+type PostEditorMode = "create" | "edit";
 type DocumentWithViewTransition = Document & {
   startViewTransition?: (updateCallback: () => void | Promise<void>) => {
     ready: Promise<void>;
@@ -39,6 +45,7 @@ type BlockDraft =
   | { id: string; type: "code"; code: string; language: string };
 
 const themeStorageKey = "site-theme";
+const firebaseSetupMessage = "Firebase Auth is not configured. Add the Firebase env vars and restart the app.";
 
 const getInitialTheme = (): Theme => {
   const storedTheme = window.localStorage.getItem(themeStorageKey);
@@ -75,6 +82,10 @@ const parseRoute = (rawRoute: string): Route => {
 
   if (parts[0] === "new" && parts.length === 1) {
     return { view: "new" };
+  }
+
+  if (parts[0] === "edit" && parts[1]) {
+    return { view: "edit", slug: parts[1] };
   }
 
   if (parts[0] === "post" && parts[1]) {
@@ -135,6 +146,67 @@ const buildBlockDraft = (type: BlockKind): BlockDraft => {
   return { id: createBlockId(), type, text: "" };
 };
 
+const buildBlockDraftFromPostBlock = (block: PostBlock): BlockDraft => {
+  if (block.type === "list") {
+    return {
+      id: createBlockId(),
+      type: "list",
+      itemsText: block.items.join("\n"),
+    };
+  }
+
+  if (block.type === "code") {
+    return {
+      id: createBlockId(),
+      type: "code",
+      code: block.code,
+      language: block.language ?? "",
+    };
+  }
+
+  return {
+    id: createBlockId(),
+    type: block.type,
+    text: block.text,
+  };
+};
+
+const buildBlockDraftsFromPost = (post?: BlogPost): BlockDraft[] => {
+  if (!post || post.blocks.length === 0) {
+    return [buildBlockDraft("paragraph")];
+  }
+
+  return post.blocks.map((block) => buildBlockDraftFromPostBlock(block));
+};
+
+const changeBlockDraftType = (block: BlockDraft, nextType: BlockKind): BlockDraft => {
+  const currentValue =
+    block.type === "list" ? block.itemsText : block.type === "code" ? block.code : block.text;
+
+  if (nextType === "list") {
+    return {
+      id: block.id,
+      type: "list",
+      itemsText: currentValue,
+    };
+  }
+
+  if (nextType === "code") {
+    return {
+      id: block.id,
+      type: "code",
+      code: currentValue,
+      language: block.type === "code" ? block.language : "",
+    };
+  }
+
+  return {
+    id: block.id,
+    type: nextType,
+    text: currentValue,
+  };
+};
+
 const getDefaultDate = (): string => {
   return new Date().toISOString().slice(0, 10);
 };
@@ -179,6 +251,25 @@ const buildPostBlocksFromDraft = (blocks: BlockDraft[]): PostBlock[] => {
   return parsedBlocks;
 };
 
+const toHashRoute = (path: string): string => {
+  if (path.startsWith("#")) {
+    return path;
+  }
+
+  if (path.startsWith("/")) {
+    return `#${path}`;
+  }
+
+  return `#/${path}`;
+};
+
+const goToRoute = (path: string): void => {
+  window.location.hash = toHashRoute(path);
+};
+
+const getPostRoute = (slug: string): string => `/post/${slug}`;
+const getEditRoute = (slug: string): string => `/edit/${slug}`;
+
 function App() {
   const [route, setRoute] = useState<Route>(getRouteFromLocation);
   const [theme, setTheme] = useState<Theme>(() => {
@@ -193,7 +284,7 @@ function App() {
   const [postsStatus, setPostsStatus] = useState<PostsStatus>("loading");
   const [postsError, setPostsError] = useState<string | null>(null);
   const [posts, setPosts] = useState<BlogPost[]>([]);
-  const [isCreatingPost, setIsCreatingPost] = useState(false);
+  const [isSavingPost, setIsSavingPost] = useState(false);
 
   const [isEditorAuthed, setIsEditorAuthed] = useState<boolean>(getEditorSession);
   const [isEditorSessionReady, setIsEditorSessionReady] = useState(!isFirebaseAuthEnabled);
@@ -242,13 +333,14 @@ function App() {
 
   const sortedPosts = useMemo(() => sortPostsByDate(posts), [posts]);
 
+  const activePostSlug = route.view === "post" || route.view === "edit" ? route.slug : undefined;
   const activePost = useMemo(() => {
-    if (route.view !== "post") {
+    if (!activePostSlug) {
       return undefined;
     }
 
-    return sortedPosts.find((post) => post.slug === route.slug);
-  }, [route, sortedPosts]);
+    return sortedPosts.find((post) => post.slug === activePostSlug);
+  }, [activePostSlug, sortedPosts]);
 
   useEffect(() => {
     const routeTitle =
@@ -260,9 +352,11 @@ function App() {
             ? `About | ${blogTitle}`
             : route.view === "new"
               ? `New Post | ${blogTitle}`
-              : route.view === "post" && activePost
-                ? `${activePost.title} | ${blogTitle}`
-                : `Not Found | ${blogTitle}`;
+              : route.view === "edit" && activePost
+                ? `Edit ${activePost.title} | ${blogTitle}`
+                : route.view === "post" && activePost
+                  ? `${activePost.title} | ${blogTitle}`
+                  : `Not Found | ${blogTitle}`;
 
     document.title = routeTitle;
   }, [route, activePost]);
@@ -331,6 +425,18 @@ function App() {
     }
   };
 
+  const syncSavedPost = useCallback((savedPost: BlogPost, previousSlug?: string) => {
+    setPosts((currentPosts) =>
+      sortPostsByDate(
+        [savedPost, ...currentPosts].filter((post, index, items) => {
+          const isDuplicateSavedPost = post.slug === savedPost.slug && items.findIndex((item) => item.slug === post.slug) !== index;
+          const isOldSlug = previousSlug !== undefined && previousSlug !== savedPost.slug && post.slug === previousSlug;
+          return !isDuplicateSavedPost && !isOldSlug;
+        }),
+      ),
+    );
+  }, []);
+
   const handleEditorLogin = async (username: string, password: string): Promise<void> => {
     await signInEditor(username, password);
     setIsEditorAuthed(true);
@@ -342,16 +448,30 @@ function App() {
   };
 
   const handleCreatePost = async (input: CreatePostInput): Promise<BlogPost> => {
-    setIsCreatingPost(true);
+    setIsSavingPost(true);
+
     try {
       const createdPost = await createPost(input);
-      setPosts((currentPosts) => sortPostsByDate([createdPost, ...currentPosts.filter((post) => post.slug !== createdPost.slug)]));
+      syncSavedPost(createdPost);
       return createdPost;
     } finally {
-      setIsCreatingPost(false);
+      setIsSavingPost(false);
     }
   };
 
+  const handleUpdatePost = async (originalSlug: string, input: CreatePostInput): Promise<BlogPost> => {
+    setIsSavingPost(true);
+
+    try {
+      const savedPost = await updatePost(originalSlug, input);
+      syncSavedPost(savedPost, originalSlug);
+      return savedPost;
+    } finally {
+      setIsSavingPost(false);
+    }
+  };
+
+  const canManagePosts = isEditorAccessAllowed && isEditorAuthed;
   const shouldShowMissingPost = route.view === "post" && !activePost && postsStatus !== "loading";
 
   return (
@@ -373,25 +493,46 @@ function App() {
       <BackgroundAccent />
 
       <div className="site-content">
-        <SiteHeader />
+        <SiteHeader showEditorLink={isEditorAccessAllowed} />
 
         <main className="main-content">
-          {route.view === "home" && <HomePage posts={sortedPosts} postsStatus={postsStatus} postsError={postsError} />}
-          {route.view === "posts" && <PostsPage posts={sortedPosts} postsStatus={postsStatus} postsError={postsError} />}
+          {route.view === "home" && (
+            <HomePage posts={sortedPosts} postsStatus={postsStatus} postsError={postsError} canEditPosts={canManagePosts} />
+          )}
+          {route.view === "posts" && (
+            <PostsPage posts={sortedPosts} postsStatus={postsStatus} postsError={postsError} canEditPosts={canManagePosts} />
+          )}
           {route.view === "about" && <AboutPage />}
           {route.view === "new" && (
             <NewPostPage
+              isEditorAccessAllowed={isEditorAccessAllowed}
+              isAuthConfigured={isFirebaseAuthConfigured}
               isAuthReady={isEditorSessionReady}
               isAuthed={isEditorAuthed}
               onLogin={handleEditorLogin}
               onLogout={handleEditorLogout}
               onCreatePost={handleCreatePost}
-              isCreating={isCreatingPost}
+              isSaving={isSavingPost}
             />
           )}
           {route.view === "post" && postsStatus === "loading" && <LoadingState label="Loading post..." />}
           {route.view === "post" && postsStatus === "error" && <ErrorState message={postsError || "Could not load this post."} />}
-          {route.view === "post" && postsStatus === "ready" && activePost && <PostPage post={activePost} />}
+          {route.view === "post" && postsStatus === "ready" && activePost && <PostPage post={activePost} canEdit={canManagePosts} />}
+          {route.view === "edit" && (
+            <EditPostPage
+              post={activePost}
+              postsStatus={postsStatus}
+              postsError={postsError}
+              isEditorAccessAllowed={isEditorAccessAllowed}
+              isAuthConfigured={isFirebaseAuthConfigured}
+              isAuthReady={isEditorSessionReady}
+              isAuthed={isEditorAuthed}
+              onLogin={handleEditorLogin}
+              onLogout={handleEditorLogout}
+              onUpdatePost={handleUpdatePost}
+              isSaving={isSavingPost}
+            />
+          )}
           {(route.view === "not-found" || shouldShowMissingPost) && <NotFoundPage />}
         </main>
 
@@ -410,7 +551,7 @@ const BackgroundAccent = () => {
   );
 };
 
-const SiteHeader = () => {
+const SiteHeader = ({ showEditorLink }: { showEditorLink: boolean }) => {
   return (
     <header className="site-header fade-in">
       <a href="#/" className="site-title">
@@ -426,9 +567,11 @@ const SiteHeader = () => {
         <a href="#/about" className="nav-link">
           About
         </a>
-        <a href="#/new" className="nav-link">
-          New
-        </a>
+        {showEditorLink && (
+          <a href="#/new" className="nav-link">
+            New
+          </a>
+        )}
       </nav>
     </header>
   );
@@ -458,7 +601,28 @@ const EmptyState = ({ message }: { message: string }) => {
   return <p className="page-intro">{message}</p>;
 };
 
-const HomePage = ({ posts, postsStatus, postsError }: { posts: BlogPost[]; postsStatus: PostsStatus; postsError: string | null }) => {
+const EditorAccessState = ({ title, message }: { title: string; message: string }) => {
+  return (
+    <section className="section-block fade-in">
+      <article className="new-post-shell">
+        <h1 className="page-title">{title}</h1>
+        <p className="page-intro">{message}</p>
+      </article>
+    </section>
+  );
+};
+
+const HomePage = ({
+  posts,
+  postsStatus,
+  postsError,
+  canEditPosts,
+}: {
+  posts: BlogPost[];
+  postsStatus: PostsStatus;
+  postsError: string | null;
+  canEditPosts: boolean;
+}) => {
   const latestPosts = posts.slice(0, 3);
   const projectPosts = posts.filter((post) => post.category === "project").slice(0, 3);
 
@@ -487,7 +651,7 @@ const HomePage = ({ posts, postsStatus, postsError }: { posts: BlogPost[]; posts
             ) : (
               <div className="post-grid">
                 {latestPosts.map((post) => (
-                  <PostCard key={post.slug} post={post} />
+                  <PostCard key={post.slug} post={post} canEdit={canEditPosts} />
                 ))}
               </div>
             )}
@@ -506,7 +670,14 @@ const HomePage = ({ posts, postsStatus, postsError }: { posts: BlogPost[]; posts
               <ul className="project-log">
                 {projectPosts.map((post) => (
                   <li key={post.slug}>
-                    <a href={`#/post/${post.slug}`}>{post.title}</a>
+                    <span className="project-log-link-group">
+                      <a href={toHashRoute(getPostRoute(post.slug))}>{post.title}</a>
+                      {canEditPosts && (
+                        <a href={toHashRoute(getEditRoute(post.slug))} className="text-link">
+                          Edit
+                        </a>
+                      )}
+                    </span>
                     <span>{formatDate(post.date)}</span>
                   </li>
                 ))}
@@ -519,7 +690,17 @@ const HomePage = ({ posts, postsStatus, postsError }: { posts: BlogPost[]; posts
   );
 };
 
-const PostsPage = ({ posts, postsStatus, postsError }: { posts: BlogPost[]; postsStatus: PostsStatus; postsError: string | null }) => {
+const PostsPage = ({
+  posts,
+  postsStatus,
+  postsError,
+  canEditPosts,
+}: {
+  posts: BlogPost[];
+  postsStatus: PostsStatus;
+  postsError: string | null;
+  canEditPosts: boolean;
+}) => {
   const [filter, setFilter] = useState<PostCategory | "all">("all");
 
   const filteredPosts = useMemo(() => {
@@ -568,7 +749,7 @@ const PostsPage = ({ posts, postsStatus, postsError }: { posts: BlogPost[]; post
         ) : (
           <div className="post-list stagger-children">
             {filteredPosts.map((post) => (
-              <PostCard key={post.slug} post={post} />
+              <PostCard key={post.slug} post={post} canEdit={canEditPosts} />
             ))}
           </div>
         ))}
@@ -576,14 +757,14 @@ const PostsPage = ({ posts, postsStatus, postsError }: { posts: BlogPost[]; post
   );
 };
 
-const PostCard = ({ post }: { post: BlogPost }) => {
+const PostCard = ({ post, canEdit }: { post: BlogPost; canEdit: boolean }) => {
   return (
     <article className="post-card">
       <p className="meta-line">
         {formatDate(post.date)} | {getReadingTime(post)}
       </p>
       <h3>
-        <a href={`#/post/${post.slug}`}>{post.title}</a>
+        <a href={toHashRoute(getPostRoute(post.slug))}>{post.title}</a>
       </h3>
       <p>{post.excerpt}</p>
       <div className="tag-row">
@@ -594,16 +775,30 @@ const PostCard = ({ post }: { post: BlogPost }) => {
           </span>
         ))}
       </div>
+      {canEdit && (
+        <div className="post-management-row">
+          <a href={toHashRoute(getEditRoute(post.slug))} className="text-link">
+            Edit post
+          </a>
+        </div>
+      )}
     </article>
   );
 };
 
-const PostPage = ({ post }: { post: BlogPost }) => {
+const PostPage = ({ post, canEdit }: { post: BlogPost; canEdit: boolean }) => {
   return (
     <article className="post-page fade-in">
-      <a href="#/posts" className="text-link">
-        Back to posts
-      </a>
+      <div className="post-page-top">
+        <a href="#/posts" className="text-link">
+          Back to posts
+        </a>
+        {canEdit && (
+          <a href={toHashRoute(getEditRoute(post.slug))} className="text-link">
+            Edit this post
+          </a>
+        )}
+      </div>
       <h1>{post.title}</h1>
       <p className="meta-line">
         {formatDate(post.date)} | {getReadingTime(post)}
@@ -653,35 +848,19 @@ const renderBlock = (block: PostBlock, index: number) => {
   );
 };
 
-const NewPostPage = ({
-  isAuthReady,
-  isAuthed,
+const EditorLoginPage = ({
+  title,
+  intro,
   onLogin,
-  onLogout,
-  onCreatePost,
-  isCreating,
 }: {
-  isAuthReady: boolean;
-  isAuthed: boolean;
+  title: string;
+  intro: string;
   onLogin: (username: string, password: string) => Promise<void>;
-  onLogout: () => Promise<void>;
-  onCreatePost: (input: CreatePostInput) => Promise<BlogPost>;
-  isCreating: boolean;
 }) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
-
-  const [title, setTitle] = useState("");
-  const [slug, setSlug] = useState("");
-  const [excerpt, setExcerpt] = useState("");
-  const [category, setCategory] = useState<PostCategory>("project");
-  const [date, setDate] = useState(getDefaultDate);
-  const [tagsInput, setTagsInput] = useState("");
-  const [blocks, setBlocks] = useState<BlockDraft[]>([buildBlockDraft("paragraph")]);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -699,6 +878,84 @@ const NewPostPage = ({
     }
   };
 
+  return (
+    <section className="section-block fade-in">
+      <article className="new-post-shell">
+        <h1 className="page-title">{title}</h1>
+        <p className="page-intro">{intro}</p>
+
+        <form className="editor-login-form" onSubmit={handleLogin}>
+          <label className="field-label" htmlFor="editor-username">
+            Username / Email
+          </label>
+          <input
+            id="editor-username"
+            className="field-input"
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            autoComplete="username"
+            required
+          />
+
+          <label className="field-label" htmlFor="editor-password">
+            Password
+          </label>
+          <input
+            id="editor-password"
+            className="field-input"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="current-password"
+            required
+          />
+
+          {loginError && <p className="form-feedback error">{loginError}</p>}
+
+          <button type="submit" className="action-button" disabled={isLoggingIn}>
+            {isLoggingIn ? "Signing in..." : "Sign in"}
+          </button>
+        </form>
+      </article>
+    </section>
+  );
+};
+
+const PostEditorForm = ({
+  mode,
+  initialPost,
+  onLogout,
+  onSubmit,
+  isSubmitting,
+}: {
+  mode: PostEditorMode;
+  initialPost?: BlogPost;
+  onLogout: () => Promise<void>;
+  onSubmit: (input: CreatePostInput) => Promise<BlogPost>;
+  isSubmitting: boolean;
+}) => {
+  const [title, setTitle] = useState(initialPost?.title ?? "");
+  const [slug, setSlug] = useState(initialPost?.slug ?? "");
+  const [excerpt, setExcerpt] = useState(initialPost?.excerpt ?? "");
+  const [category, setCategory] = useState<PostCategory>(initialPost?.category ?? "project");
+  const [date, setDate] = useState(initialPost?.date ?? getDefaultDate());
+  const [tagsInput, setTagsInput] = useState(initialPost?.tags.join(", ") ?? "");
+  const [blocks, setBlocks] = useState<BlockDraft[]>(buildBlockDraftsFromPost(initialPost));
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const isEditMode = mode === "edit";
+
+  useEffect(() => {
+    setTitle(initialPost?.title ?? "");
+    setSlug(initialPost?.slug ?? "");
+    setExcerpt(initialPost?.excerpt ?? "");
+    setCategory(initialPost?.category ?? "project");
+    setDate(initialPost?.date ?? getDefaultDate());
+    setTagsInput(initialPost?.tags.join(", ") ?? "");
+    setBlocks(buildBlockDraftsFromPost(initialPost));
+    setSubmitError(null);
+  }, [initialPost, mode]);
+
   const handleAddBlock = (type: BlockKind): void => {
     setBlocks((currentBlocks) => [...currentBlocks, buildBlockDraft(type)]);
   };
@@ -712,6 +969,9 @@ const NewPostPage = ({
 
       const updatedBlocks = [...currentBlocks];
       const [moved] = updatedBlocks.splice(index, 1);
+      if (!moved) {
+        return currentBlocks;
+      }
       updatedBlocks.splice(nextIndex, 0, moved);
       return updatedBlocks;
     });
@@ -728,7 +988,9 @@ const NewPostPage = ({
   };
 
   const handleBlockTypeChange = (index: number, nextType: BlockKind): void => {
-    setBlocks((currentBlocks) => currentBlocks.map((block, blockIndex) => (blockIndex === index ? buildBlockDraft(nextType) : block)));
+    setBlocks((currentBlocks) =>
+      currentBlocks.map((block, blockIndex) => (blockIndex === index ? changeBlockDraftType(block, nextType) : block)),
+    );
   };
 
   const handleBlockTextChange = (index: number, value: string): void => {
@@ -767,10 +1029,9 @@ const NewPostPage = ({
     setSlug(slugify(title));
   };
 
-  const handlePublishPost = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     setSubmitError(null);
-    setSubmitSuccess(null);
 
     try {
       const parsedBlocks = buildPostBlocksFromDraft(blocks);
@@ -784,81 +1045,32 @@ const NewPostPage = ({
         blocks: parsedBlocks,
       };
 
-      const createdPost = await onCreatePost(postInput);
-      setSubmitSuccess(`Published \"${createdPost.title}\" successfully.`);
-      setTitle("");
-      setSlug("");
-      setExcerpt("");
-      setTagsInput("");
-      setDate(getDefaultDate());
-      setBlocks([buildBlockDraft("paragraph")]);
+      const savedPost = await onSubmit(postInput);
+      goToRoute(getPostRoute(savedPost.slug));
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not publish post.";
+      const message = error instanceof Error ? error.message : `Could not ${isEditMode ? "save" : "publish"} post.`;
       setSubmitError(message);
     }
   };
-
-  if (!isAuthReady) {
-    return <LoadingState label="Checking editor session..." />;
-  }
-
-  if (!isAuthed) {
-    return (
-      <section className="section-block fade-in">
-        <article className="new-post-shell">
-          <h1 className="page-title">Editor Login</h1>
-          <p className="page-intro">Sign in with your Firebase email/password to access the `/new` route.</p>
-
-          <form className="editor-login-form" onSubmit={handleLogin}>
-            <label className="field-label" htmlFor="editor-username">
-              Username / Email
-            </label>
-            <input
-              id="editor-username"
-              className="field-input"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              autoComplete="username"
-              required
-            />
-
-            <label className="field-label" htmlFor="editor-password">
-              Password
-            </label>
-            <input
-              id="editor-password"
-              className="field-input"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete="current-password"
-              required
-            />
-
-            {loginError && <p className="form-feedback error">{loginError}</p>}
-
-            <button type="submit" className="action-button" disabled={isLoggingIn}>
-              {isLoggingIn ? "Signing in..." : "Sign in"}
-            </button>
-          </form>
-        </article>
-      </section>
-    );
-  }
 
   return (
     <section className="section-block fade-in">
       <article className="new-post-shell">
         <div className="new-post-head">
-          <h1 className="page-title">Create New Post</h1>
+          <div>
+            <h1 className="page-title">{isEditMode ? "Edit Post" : "Create New Post"}</h1>
+            <p className="page-intro">
+              {isEditMode
+                ? "Update title, metadata, and content blocks with the same editor used for new posts."
+                : "Create blog posts that feed both the posts list and project log automatically."}
+            </p>
+          </div>
           <button type="button" className="secondary-button" onClick={() => void onLogout()}>
             Log out
           </button>
         </div>
 
-        <p className="page-intro">Create blog posts that feed both the posts list and project log automatically.</p>
-
-        <form className="new-post-form" onSubmit={handlePublishPost}>
+        <form className="new-post-form" onSubmit={handleSubmit}>
           <div className="field-grid">
             <div className="field-group">
               <label className="field-label" htmlFor="post-title">
@@ -1035,14 +1247,127 @@ const NewPostPage = ({
           </div>
 
           {submitError && <p className="form-feedback error">{submitError}</p>}
-          {submitSuccess && <p className="form-feedback success">{submitSuccess}</p>}
 
-          <button type="submit" className="action-button" disabled={isCreating}>
-            {isCreating ? "Publishing..." : "Publish Post"}
+          <button type="submit" className="action-button" disabled={isSubmitting}>
+            {isSubmitting ? (isEditMode ? "Saving..." : "Publishing...") : isEditMode ? "Save Changes" : "Publish Post"}
           </button>
         </form>
       </article>
     </section>
+  );
+};
+
+const NewPostPage = ({
+  isEditorAccessAllowed: canAccessEditor,
+  isAuthConfigured,
+  isAuthReady,
+  isAuthed,
+  onLogin,
+  onLogout,
+  onCreatePost,
+  isSaving,
+}: {
+  isEditorAccessAllowed: boolean;
+  isAuthConfigured: boolean;
+  isAuthReady: boolean;
+  isAuthed: boolean;
+  onLogin: (username: string, password: string) => Promise<void>;
+  onLogout: () => Promise<void>;
+  onCreatePost: (input: CreatePostInput) => Promise<BlogPost>;
+  isSaving: boolean;
+}) => {
+  if (!canAccessEditor) {
+    return <EditorAccessState title="Editor Unavailable" message={editorAccessDeniedMessage} />;
+  }
+
+  if (!isAuthConfigured) {
+    return <EditorAccessState title="Firebase Setup Needed" message={firebaseSetupMessage} />;
+  }
+
+  if (!isAuthReady) {
+    return <LoadingState label="Checking editor session..." />;
+  }
+
+  if (!isAuthed) {
+    return (
+      <EditorLoginPage
+        title="Editor Login"
+        intro="Sign in with your Firebase email/password to access the local `/new` route."
+        onLogin={onLogin}
+      />
+    );
+  }
+
+  return <PostEditorForm mode="create" onLogout={onLogout} onSubmit={onCreatePost} isSubmitting={isSaving} />;
+};
+
+const EditPostPage = ({
+  post,
+  postsStatus,
+  postsError,
+  isEditorAccessAllowed: canAccessEditor,
+  isAuthConfigured,
+  isAuthReady,
+  isAuthed,
+  onLogin,
+  onLogout,
+  onUpdatePost,
+  isSaving,
+}: {
+  post?: BlogPost;
+  postsStatus: PostsStatus;
+  postsError: string | null;
+  isEditorAccessAllowed: boolean;
+  isAuthConfigured: boolean;
+  isAuthReady: boolean;
+  isAuthed: boolean;
+  onLogin: (username: string, password: string) => Promise<void>;
+  onLogout: () => Promise<void>;
+  onUpdatePost: (originalSlug: string, input: CreatePostInput) => Promise<BlogPost>;
+  isSaving: boolean;
+}) => {
+  if (!canAccessEditor) {
+    return <EditorAccessState title="Editor Unavailable" message={editorAccessDeniedMessage} />;
+  }
+
+  if (!isAuthConfigured) {
+    return <EditorAccessState title="Firebase Setup Needed" message={firebaseSetupMessage} />;
+  }
+
+  if (postsStatus === "loading") {
+    return <LoadingState label="Loading post..." />;
+  }
+
+  if (postsStatus === "error") {
+    return <ErrorState message={postsError || "Could not load this post."} />;
+  }
+
+  if (!post) {
+    return <NotFoundPage />;
+  }
+
+  if (!isAuthReady) {
+    return <LoadingState label="Checking editor session..." />;
+  }
+
+  if (!isAuthed) {
+    return (
+      <EditorLoginPage
+        title="Editor Login"
+        intro="Sign in with your Firebase email/password to edit this post from the local dev server."
+        onLogin={onLogin}
+      />
+    );
+  }
+
+  return (
+    <PostEditorForm
+      mode="edit"
+      initialPost={post}
+      onLogout={onLogout}
+      onSubmit={(input) => onUpdatePost(post.slug, input)}
+      isSubmitting={isSaving}
+    />
   );
 };
 

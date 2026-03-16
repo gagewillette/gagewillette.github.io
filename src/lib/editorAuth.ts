@@ -1,14 +1,16 @@
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { editorAccessDeniedMessage, isEditorAccessAllowed } from "./editorEnvironment";
 import { auth } from "./firebase";
-
-export const isFirebaseAuthEnabled = Boolean(auth);
+export { editorAccessDeniedMessage, isEditorAccessAllowed } from "./editorEnvironment";
+export const isFirebaseAuthConfigured = Boolean(auth);
+export const isFirebaseAuthEnabled = isFirebaseAuthConfigured && isEditorAccessAllowed;
 
 export const getEditorSession = (): boolean => {
-  return Boolean(auth?.currentUser);
+  return isEditorAccessAllowed && Boolean(auth?.currentUser);
 };
 
 export const subscribeToEditorSession = (onChange: (authed: boolean) => void): (() => void) => {
-  if (!auth) {
+  if (!isEditorAccessAllowed || !auth) {
     onChange(false);
     return () => {};
   }
@@ -17,6 +19,10 @@ export const subscribeToEditorSession = (onChange: (authed: boolean) => void): (
 };
 
 export const signInEditor = async (username: string, password: string): Promise<void> => {
+  if (!isEditorAccessAllowed) {
+    throw new Error(editorAccessDeniedMessage);
+  }
+
   if (!auth) {
     throw new Error("Firebase Auth is not configured. Add the Firebase env vars and restart the app.");
   }
@@ -25,7 +31,7 @@ export const signInEditor = async (username: string, password: string): Promise<
 };
 
 export const signOutEditor = async (): Promise<void> => {
-  if (!auth) {
+  if (!isEditorAccessAllowed || !auth) {
     return;
   }
 
