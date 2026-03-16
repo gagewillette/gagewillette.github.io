@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, setDoc, writeBatch } from "firebase/firestore";
 import { posts as fallbackPosts, type BlogPost, type PostBlock, type PostCategory } from "../content/posts";
 import { db, isFirebaseConfigured } from "./firebase";
 
@@ -198,6 +198,55 @@ export const createPost = async (input: CreatePostInput): Promise<BlogPost> => {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+
+  return normalizedPost;
+};
+
+export const updatePost = async (originalSlug: string, input: CreatePostInput): Promise<BlogPost> => {
+  if (!isFirebaseConfigured || !db) {
+    throw new Error("Firebase is not configured yet. Add your Firebase keys to .env before editing posts.");
+  }
+
+  const normalizedOriginalSlug = slugify(originalSlug);
+  if (!normalizedOriginalSlug) {
+    throw new Error("The original post slug is invalid.");
+  }
+
+  const normalizedPost = ensureValidPostInput(input);
+  const originalRef = doc(collection(db, postsCollectionName), normalizedOriginalSlug);
+  const existing = await getDoc(originalRef);
+
+  if (!existing.exists()) {
+    throw new Error("This post no longer exists.");
+  }
+
+  const existingData = existing.data();
+  const createdAt = isObject(existingData) && "createdAt" in existingData ? existingData.createdAt : serverTimestamp();
+
+  if (normalizedOriginalSlug === normalizedPost.slug) {
+    await setDoc(originalRef, {
+      ...normalizedPost,
+      createdAt,
+      updatedAt: serverTimestamp(),
+    });
+
+    return normalizedPost;
+  }
+
+  const nextRef = doc(collection(db, postsCollectionName), normalizedPost.slug);
+  const nextExisting = await getDoc(nextRef);
+  if (nextExisting.exists()) {
+    throw new Error("A post with this slug already exists. Choose a different slug.");
+  }
+
+  const batch = writeBatch(db);
+  batch.set(nextRef, {
+    ...normalizedPost,
+    createdAt,
+    updatedAt: serverTimestamp(),
+  });
+  batch.delete(originalRef);
+  await batch.commit();
 
   return normalizedPost;
 };

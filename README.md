@@ -10,7 +10,7 @@ This repository is set up as a clean, readable developer blog with:
 - Posts index with category filters (`project` and `life`).
 - Individual post pages.
 - About page.
-- Protected new-post route (`#/new` and `/new`) with Firebase Auth email/password login.
+- Protected editor routes (`#/new` and `#/edit/<slug>`) with Firebase Auth email/password login.
 - Firebase Firestore-backed posts for both reading and publishing.
 - Hash-based routes for GitHub Pages compatibility (`#/posts`, `#/post/<slug>`, etc.).
 
@@ -39,7 +39,7 @@ Required:
 - `VITE_FIREBASE_APP_ID`
 - `VITE_FIREBASE_MEASUREMENT_ID` (optional for Analytics features)
 
-If those values are present, the app reads blog posts from the Firestore `posts` collection and the `/new` route publishes directly into that same collection.
+If those values are present, the app reads blog posts from the Firestore `posts` collection and the local editor routes publish directly into that same collection.
 
 ## Firestore data model
 
@@ -75,12 +75,22 @@ npm run build
 npm run preview
 ```
 
-## How to publish a new post
+## Local-only editor access
 
-1. Open `#/new` (on GitHub Pages this is the canonical route; direct `/new` is redirected to it).
-2. Log in with Firebase Auth email/password.
-3. Fill out title, slug, excerpt, category, date, tags, and content blocks.
-4. Click `Publish Post`.
+The login form and authoring tools are only available when both of these are true:
+
+- The app is running in Vite dev mode.
+- The browser hostname is localhost (`localhost`, `127.0.0.1`, or `::1`).
+
+On the deployed site, users cannot log in, create posts, or edit posts.
+
+## How to publish or edit a post
+
+1. Run the app locally with `npm run dev`.
+2. Open `#/new` to create a post, or open `#/edit/<slug>` to edit an existing one.
+3. Log in with Firebase Auth email/password.
+4. Fill out or update title, slug, excerpt, category, date, tags, and content blocks.
+5. Click `Publish Post` or `Save Changes`.
 
 The app validates and normalizes slug/tags/blocks before writing to Firestore.
 
