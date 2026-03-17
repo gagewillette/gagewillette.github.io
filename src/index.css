@@ -557,27 +557,78 @@ a {
 .post-content {
   margin-top: 1.35rem;
   color: var(--text-soft);
+  font-family: "Plus Jakarta Sans", "Segoe UI", Tahoma, sans-serif;
+}
+
+.post-content > :first-child {
+  margin-top: 0;
+}
+
+.post-content > :last-child {
+  margin-bottom: 0;
+}
+
+.post-content :is(h1, h2, h3, h4, h5, h6) {
+  margin: 1.35rem 0 0.55rem;
+  font-family: "Space Grotesk", "Plus Jakarta Sans", sans-serif;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.post-content h1 {
+  font-size: 1.6rem;
 }
 
 .post-content h2 {
-  margin: 1.25rem 0 0.5rem;
-  font-size: 1.18rem;
-  font-family: "Space Grotesk", "Plus Jakarta Sans", sans-serif;
+  font-size: 1.3rem;
+}
+
+.post-content h3 {
+  font-size: 1.14rem;
+}
+
+.post-content h4,
+.post-content h5,
+.post-content h6 {
+  font-size: 1rem;
 }
 
 .post-content p,
 .post-content ul,
+.post-content ol,
 .post-content blockquote,
-.post-content pre {
+.post-content pre,
+.post-content table,
+.post-content hr {
   margin: 0.75rem 0;
 }
 
-.post-content ul {
+.post-content ul,
+.post-content ol {
   padding-left: 1.1rem;
 }
 
 .post-content li {
   margin: 0.24rem 0;
+}
+
+.post-content a {
+  color: var(--accent-strong);
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.14em;
+}
+
+.post-content a:hover {
+  color: var(--accent);
+}
+
+.post-content img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
 }
 
 .post-content blockquote {
@@ -600,6 +651,43 @@ a {
 .post-content code {
   font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
   font-size: 0.86rem;
+}
+
+.post-content :not(pre) > code {
+  background: var(--accent-soft);
+  color: var(--text);
+  border-radius: 0.45rem;
+  padding: 0.14rem 0.36rem;
+}
+
+.post-content table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.post-content th,
+.post-content td {
+  border: 1px solid var(--border-soft);
+  padding: 0.6rem 0.72rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.post-content th {
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.8rem;
+  letter-spacing: 0.03em;
+  color: var(--text);
+  background: var(--surface-soft);
+}
+
+.post-content hr {
+  border: 0;
+  border-top: 1px solid var(--border);
 }
 
 .about-text p {
@@ -689,6 +777,16 @@ a {
   min-height: 84px;
 }
 
+.markdown-editor {
+  min-height: 22rem;
+}
+
+.editor-hint {
+  margin: 0;
+  color: var(--text-meta);
+  font-size: 0.82rem;
+}
+
 .inline-input-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -697,8 +795,7 @@ a {
 }
 
 .action-button,
-.secondary-button,
-.tiny-button {
+.secondary-button {
   border: 1px solid transparent;
   border-radius: 999px;
   font: inherit;
@@ -724,62 +821,22 @@ a {
   color: var(--text-muted);
 }
 
-.secondary-button:hover,
-.tiny-button:hover {
+.secondary-button:hover {
   border-color: var(--nav-hover-border);
   color: var(--accent-strong);
 }
 
-.block-add-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.42rem;
-}
-
-.block-editor-list {
-  display: grid;
-  gap: 0.8rem;
-}
-
-.block-editor-card {
+.markdown-preview {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--card-bg);
   box-shadow: var(--shadow-soft);
-  padding: 0.8rem;
-  display: grid;
-  gap: 0.5rem;
+  padding: 1rem;
 }
 
-.block-editor-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.block-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.tiny-button {
-  padding: 0.28rem 0.6rem;
-  border-color: var(--border-soft);
-  background: var(--surface);
+.empty-markdown-preview {
+  margin: 0;
   color: var(--text-muted);
-  font-size: 0.78rem;
-}
-
-.tiny-button.danger {
-  border-color: rgba(239, 68, 68, 0.4);
-  color: #b91c1c;
-}
-
-:root[data-theme="dark"] .tiny-button.danger {
-  color: #fecaca;
-  border-color: rgba(248, 113, 113, 0.4);
 }
 
 .form-feedback {
@@ -898,11 +955,6 @@ a {
   }
 
   .new-post-head {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .block-editor-top {
     flex-direction: column;
     align-items: flex-start;
   }

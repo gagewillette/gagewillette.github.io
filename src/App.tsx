@@ -1,6 +1,8 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { blogDescription, blogTitle, type BlogPost, type PostBlock, type PostCategory } from "./content/posts";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { blogDescription, blogTitle, type BlogPost, type PostCategory } from "./content/posts";
 import {
   createPost,
   fetchPosts,
@@ -31,18 +33,12 @@ type Route =
   | { view: "not-found" };
 type Theme = "light" | "dark";
 type PostsStatus = "loading" | "ready" | "error";
-type BlockKind = PostBlock["type"];
 type PostEditorMode = "create" | "edit";
 type DocumentWithViewTransition = Document & {
   startViewTransition?: (updateCallback: () => void | Promise<void>) => {
     ready: Promise<void>;
   };
 };
-
-type BlockDraft =
-  | { id: string; type: "paragraph" | "heading" | "quote"; text: string }
-  | { id: string; type: "list"; itemsText: string }
-  | { id: string; type: "code"; code: string; language: string };
 
 const themeStorageKey = "site-theme";
 const firebaseSetupMessage = "Firebase Auth is not configured. Add the Firebase env vars and restart the app.";
@@ -112,143 +108,30 @@ const formatDate = (date: string): string => {
   });
 };
 
-const getReadingTime = (post: BlogPost): string => {
-  const text = post.blocks
-    .map((block) => {
-      if (block.type === "list") {
-        return block.items.join(" ");
-      }
-      if (block.type === "code") {
-        return "";
-      }
-      return block.text;
-    })
-    .join(" ");
+const getPlainTextFromMarkdown = (markdown: string): string => {
+  return markdown
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`[^`]*`/g, " ")
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, " $1 ")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, " $1 ")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\s{0,3}>\s?/gm, "")
+    .replace(/^\s{0,3}(?:[-+*]|\d+\.)\s+/gm, "")
+    .replace(/[*_~|]/g, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\n+/g, " ")
+    .trim();
+};
 
+const getReadingTime = (post: BlogPost): string => {
+  const text = getPlainTextFromMarkdown(post.markdown);
   const words = text.trim().split(/\s+/).filter(Boolean).length;
   const minutes = Math.max(1, Math.ceil(words / 200));
   return `${minutes} min read`;
 };
 
-const createBlockId = (): string => {
-  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-};
-
-const buildBlockDraft = (type: BlockKind): BlockDraft => {
-  if (type === "list") {
-    return { id: createBlockId(), type: "list", itemsText: "" };
-  }
-
-  if (type === "code") {
-    return { id: createBlockId(), type: "code", code: "", language: "" };
-  }
-
-  return { id: createBlockId(), type, text: "" };
-};
-
-const buildBlockDraftFromPostBlock = (block: PostBlock): BlockDraft => {
-  if (block.type === "list") {
-    return {
-      id: createBlockId(),
-      type: "list",
-      itemsText: block.items.join("\n"),
-    };
-  }
-
-  if (block.type === "code") {
-    return {
-      id: createBlockId(),
-      type: "code",
-      code: block.code,
-      language: block.language ?? "",
-    };
-  }
-
-  return {
-    id: createBlockId(),
-    type: block.type,
-    text: block.text,
-  };
-};
-
-const buildBlockDraftsFromPost = (post?: BlogPost): BlockDraft[] => {
-  if (!post || post.blocks.length === 0) {
-    return [buildBlockDraft("paragraph")];
-  }
-
-  return post.blocks.map((block) => buildBlockDraftFromPostBlock(block));
-};
-
-const changeBlockDraftType = (block: BlockDraft, nextType: BlockKind): BlockDraft => {
-  const currentValue =
-    block.type === "list" ? block.itemsText : block.type === "code" ? block.code : block.text;
-
-  if (nextType === "list") {
-    return {
-      id: block.id,
-      type: "list",
-      itemsText: currentValue,
-    };
-  }
-
-  if (nextType === "code") {
-    return {
-      id: block.id,
-      type: "code",
-      code: currentValue,
-      language: block.type === "code" ? block.language : "",
-    };
-  }
-
-  return {
-    id: block.id,
-    type: nextType,
-    text: currentValue,
-  };
-};
-
 const getDefaultDate = (): string => {
   return new Date().toISOString().slice(0, 10);
-};
-
-const buildPostBlocksFromDraft = (blocks: BlockDraft[]): PostBlock[] => {
-  const parsedBlocks: PostBlock[] = [];
-
-  blocks.forEach((block) => {
-    if (block.type === "list") {
-      const items = block.itemsText
-        .split("\n")
-        .map((item) => item.trim())
-        .filter(Boolean);
-      if (items.length > 0) {
-        parsedBlocks.push({ type: "list", items });
-      }
-      return;
-    }
-
-    if (block.type === "code") {
-      const code = block.code.trimEnd();
-      if (code) {
-        parsedBlocks.push({
-          type: "code",
-          code,
-          language: block.language.trim() || undefined,
-        });
-      }
-      return;
-    }
-
-    const text = block.text.trim();
-    if (text) {
-      parsedBlocks.push({ type: block.type, text });
-    }
-  });
-
-  if (parsedBlocks.length === 0) {
-    throw new Error("Add at least one content block with text or code.");
-  }
-
-  return parsedBlocks;
 };
 
 const toHashRoute = (path: string): string => {
@@ -811,40 +694,16 @@ const PostPage = ({ post, canEdit }: { post: BlogPost; canEdit: boolean }) => {
           </span>
         ))}
       </div>
-      <div className="post-content">{post.blocks.map((block, index) => renderBlock(block, index))}</div>
+      <MarkdownContent markdown={post.markdown} className="post-content" />
     </article>
   );
 };
 
-const renderBlock = (block: PostBlock, index: number) => {
-  const key = `${block.type}-${index}`;
-
-  if (block.type === "paragraph") {
-    return <p key={key}>{block.text}</p>;
-  }
-
-  if (block.type === "heading") {
-    return <h2 key={key}>{block.text}</h2>;
-  }
-
-  if (block.type === "quote") {
-    return <blockquote key={key}>{block.text}</blockquote>;
-  }
-
-  if (block.type === "code") {
-    return (
-      <pre key={key}>
-        <code>{block.code}</code>
-      </pre>
-    );
-  }
-
+const MarkdownContent = ({ markdown, className }: { markdown: string; className?: string }) => {
   return (
-    <ul key={key}>
-      {block.items.map((item, itemIndex) => (
-        <li key={`${key}-${itemIndex}`}>{item}</li>
-      ))}
-    </ul>
+    <div className={className}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
+    </div>
   );
 };
 
@@ -940,7 +799,7 @@ const PostEditorForm = ({
   const [category, setCategory] = useState<PostCategory>(initialPost?.category ?? "project");
   const [date, setDate] = useState(initialPost?.date ?? getDefaultDate());
   const [tagsInput, setTagsInput] = useState(initialPost?.tags.join(", ") ?? "");
-  const [blocks, setBlocks] = useState<BlockDraft[]>(buildBlockDraftsFromPost(initialPost));
+  const [markdown, setMarkdown] = useState(initialPost?.markdown ?? "");
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const isEditMode = mode === "edit";
@@ -952,78 +811,9 @@ const PostEditorForm = ({
     setCategory(initialPost?.category ?? "project");
     setDate(initialPost?.date ?? getDefaultDate());
     setTagsInput(initialPost?.tags.join(", ") ?? "");
-    setBlocks(buildBlockDraftsFromPost(initialPost));
+    setMarkdown(initialPost?.markdown ?? "");
     setSubmitError(null);
   }, [initialPost, mode]);
-
-  const handleAddBlock = (type: BlockKind): void => {
-    setBlocks((currentBlocks) => [...currentBlocks, buildBlockDraft(type)]);
-  };
-
-  const handleMoveBlock = (index: number, direction: "up" | "down"): void => {
-    setBlocks((currentBlocks) => {
-      const nextIndex = direction === "up" ? index - 1 : index + 1;
-      if (nextIndex < 0 || nextIndex >= currentBlocks.length) {
-        return currentBlocks;
-      }
-
-      const updatedBlocks = [...currentBlocks];
-      const [moved] = updatedBlocks.splice(index, 1);
-      if (!moved) {
-        return currentBlocks;
-      }
-      updatedBlocks.splice(nextIndex, 0, moved);
-      return updatedBlocks;
-    });
-  };
-
-  const handleRemoveBlock = (index: number): void => {
-    setBlocks((currentBlocks) => {
-      if (currentBlocks.length === 1) {
-        return [buildBlockDraft("paragraph")];
-      }
-
-      return currentBlocks.filter((_, blockIndex) => blockIndex !== index);
-    });
-  };
-
-  const handleBlockTypeChange = (index: number, nextType: BlockKind): void => {
-    setBlocks((currentBlocks) =>
-      currentBlocks.map((block, blockIndex) => (blockIndex === index ? changeBlockDraftType(block, nextType) : block)),
-    );
-  };
-
-  const handleBlockTextChange = (index: number, value: string): void => {
-    setBlocks((currentBlocks) =>
-      currentBlocks.map((block, blockIndex) => {
-        if (blockIndex !== index) {
-          return block;
-        }
-
-        if (block.type === "list") {
-          return { ...block, itemsText: value };
-        }
-
-        if (block.type === "code") {
-          return { ...block, code: value };
-        }
-
-        return { ...block, text: value };
-      }),
-    );
-  };
-
-  const handleBlockLanguageChange = (index: number, value: string): void => {
-    setBlocks((currentBlocks) =>
-      currentBlocks.map((block, blockIndex) => {
-        if (blockIndex !== index || block.type !== "code") {
-          return block;
-        }
-
-        return { ...block, language: value };
-      }),
-    );
-  };
 
   const handleGenerateSlug = (): void => {
     setSlug(slugify(title));
@@ -1034,7 +824,6 @@ const PostEditorForm = ({
     setSubmitError(null);
 
     try {
-      const parsedBlocks = buildPostBlocksFromDraft(blocks);
       const postInput: CreatePostInput = {
         slug: slugify(slug || title),
         title,
@@ -1042,7 +831,7 @@ const PostEditorForm = ({
         category,
         date,
         tags: normalizeTags(tagsInput.split(",")),
-        blocks: parsedBlocks,
+        markdown,
       };
 
       const savedPost = await onSubmit(postInput);
@@ -1061,8 +850,8 @@ const PostEditorForm = ({
             <h1 className="page-title">{isEditMode ? "Edit Post" : "Create New Post"}</h1>
             <p className="page-intro">
               {isEditMode
-                ? "Update title, metadata, and content blocks with the same editor used for new posts."
-                : "Create blog posts that feed both the posts list and project log automatically."}
+                ? "Update title, metadata, and Markdown content using the live preview below."
+                : "Write posts in Markdown and publish them directly to Firestore."}
             </p>
           </div>
           <button type="button" className="secondary-button" onClick={() => void onLogout()}>
@@ -1165,84 +954,34 @@ const PostEditorForm = ({
 
           <div className="field-group">
             <div className="section-headline-row">
-              <h2>Content Blocks</h2>
-              <div className="block-add-row">
-                <button type="button" className="secondary-button" onClick={() => handleAddBlock("paragraph")}>
-                  + Paragraph
-                </button>
-                <button type="button" className="secondary-button" onClick={() => handleAddBlock("heading")}>
-                  + Heading
-                </button>
-                <button type="button" className="secondary-button" onClick={() => handleAddBlock("list")}>
-                  + List
-                </button>
-                <button type="button" className="secondary-button" onClick={() => handleAddBlock("quote")}>
-                  + Quote
-                </button>
-                <button type="button" className="secondary-button" onClick={() => handleAddBlock("code")}>
-                  + Code
-                </button>
-              </div>
+              <h2>Markdown</h2>
+              <p className="editor-hint">Supports headings, lists, links, images, code fences, tables, and blockquotes.</p>
             </div>
+            <label className="field-label" htmlFor="post-markdown">
+              Body
+            </label>
+            <textarea
+              id="post-markdown"
+              className="field-textarea markdown-editor"
+              rows={18}
+              value={markdown}
+              onChange={(event) => setMarkdown(event.target.value)}
+              placeholder={"## Shipping notes\n\nWrite in Markdown here.\n\n- Lists\n- Images\n- Links\n\n```ts\nconsole.log(\"hello\");\n```"}
+              required
+            />
+          </div>
 
-            <div className="block-editor-list">
-              {blocks.map((block, index) => (
-                <article className="block-editor-card" key={block.id}>
-                  <div className="block-editor-top">
-                    <strong>Block {index + 1}</strong>
-                    <div className="block-controls">
-                      <button type="button" className="tiny-button" onClick={() => handleMoveBlock(index, "up")}>
-                        Up
-                      </button>
-                      <button type="button" className="tiny-button" onClick={() => handleMoveBlock(index, "down")}>
-                        Down
-                      </button>
-                      <button type="button" className="tiny-button danger" onClick={() => handleRemoveBlock(index)}>
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-
-                  <label className="field-label">Type</label>
-                  <select
-                    className="field-input"
-                    value={block.type}
-                    onChange={(event) => handleBlockTypeChange(index, event.target.value as BlockKind)}
-                  >
-                    <option value="paragraph">Paragraph</option>
-                    <option value="heading">Heading</option>
-                    <option value="list">List</option>
-                    <option value="quote">Quote</option>
-                    <option value="code">Code</option>
-                  </select>
-
-                  {block.type === "code" && (
-                    <>
-                      <label className="field-label">Language (optional)</label>
-                      <input
-                        className="field-input"
-                        value={block.language}
-                        onChange={(event) => handleBlockLanguageChange(index, event.target.value)}
-                        placeholder="typescript"
-                      />
-                    </>
-                  )}
-
-                  <label className="field-label">{block.type === "list" ? "List items (one per line)" : "Content"}</label>
-                  <textarea
-                    className="field-textarea"
-                    rows={block.type === "code" ? 8 : 5}
-                    value={
-                      block.type === "list"
-                        ? block.itemsText
-                        : block.type === "code"
-                          ? block.code
-                          : block.text
-                    }
-                    onChange={(event) => handleBlockTextChange(index, event.target.value)}
-                  />
-                </article>
-              ))}
+          <div className="field-group">
+            <div className="section-headline-row">
+              <h2>Preview</h2>
+              <p className="editor-hint">Rendered using the same typography and post styles as the live site.</p>
+            </div>
+            <div className="markdown-preview">
+              {markdown.trim() ? (
+                <MarkdownContent markdown={markdown} className="post-content" />
+              ) : (
+                <p className="empty-markdown-preview">Start writing to preview the rendered post.</p>
+              )}
             </div>
           </div>
 

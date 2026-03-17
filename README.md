@@ -56,17 +56,14 @@ Document shape:
   category: "project" | "life";
   date: "YYYY-MM-DD";
   tags: string[];
-  blocks: Array<
-    | { type: "paragraph"; text: string }
-    | { type: "heading"; text: string }
-    | { type: "list"; items: string[] }
-    | { type: "quote"; text: string }
-    | { type: "code"; code: string; language?: string }
-  >;
+  markdown: string;
+  contentFormat: "markdown";
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
 ```
+
+Legacy posts that still store `blocks` remain readable in the app, and saving them again rewrites the document into the Markdown schema above.
 
 ## Production build
 
@@ -89,10 +86,10 @@ On the deployed site, users cannot log in, create posts, or edit posts.
 1. Run the app locally with `npm run dev`.
 2. Open `#/new` to create a post, or open `#/edit/<slug>` to edit an existing one.
 3. Log in with Firebase Auth email/password.
-4. Fill out or update title, slug, excerpt, category, date, tags, and content blocks.
+4. Fill out or update title, slug, excerpt, category, date, tags, and the Markdown body.
 5. Click `Publish Post` or `Save Changes`.
 
-The app validates and normalizes slug/tags/blocks before writing to Firestore.
+The app validates and normalizes slug, tags, and Markdown content before writing to Firestore.
 
 ## Deployment
 

@@ -1,8 +1,14 @@
 import { collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, setDoc, writeBatch } from "firebase/firestore";
-import { posts as fallbackPosts, type BlogPost, type PostBlock, type PostCategory } from "../content/posts";
+import { posts as fallbackPosts, type BlogPost, type PostCategory } from "../content/posts";
 import { db, isFirebaseConfigured } from "./firebase";
 
 type UnknownRecord = Record<string, unknown>;
+type LegacyPostBlock =
+  | { type: "paragraph"; text: string }
+  | { type: "heading"; text: string }
+  | { type: "quote"; text: string }
+  | { type: "list"; items: string[] }
+  | { type: "code"; code: string; language?: string };
 
 const postsCollectionName = "posts";
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
@@ -14,7 +20,7 @@ export interface CreatePostInput {
   category: PostCategory;
   date: string;
   tags: string[];
-  blocks: PostBlock[];
+  markdown: string;
 }
 
 export const sortPostsByDate = (items: BlogPost[]): BlogPost[] => {
@@ -52,7 +58,11 @@ const parseStringArray = (value: unknown): string[] | null => {
   return value;
 };
 
-const parsePostBlock = (value: unknown): PostBlock | null => {
+const normalizeMarkdown = (value: string): string => {
+  return value.replace(/\r\n?/g, "\n").trim();
+};
+
+const parsePostBlock = (value: unknown): LegacyPostBlock | null => {
   if (!isObject(value) || typeof value.type !== "string") {
     return null;
   }
@@ -90,6 +100,37 @@ const parsePostBlock = (value: unknown): PostBlock | null => {
   return null;
 };
 
+const convertBlocksToMarkdown = (blocks: LegacyPostBlock[]): string => {
+  return blocks
+    .map((block) => {
+      if (block.type === "paragraph") {
+        return block.text.trim();
+      }
+
+      if (block.type === "heading") {
+        return `## ${block.text.trim()}`;
+      }
+
+      if (block.type === "quote") {
+        return block.text
+          .trim()
+          .split("\n")
+          .map((line) => `> ${line.trim()}`)
+          .join("\n");
+      }
+
+      if (block.type === "list") {
+        return block.items.map((item) => `- ${item.trim()}`).join("\n");
+      }
+
+      const language = block.language?.trim();
+      return `\`\`\`${language ?? ""}\n${block.code.trimEnd()}\n\`\`\``;
+    })
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
+};
+
 const parsePost = (value: unknown): BlogPost | null => {
   if (!isObject(value)) {
     return null;
@@ -107,13 +148,16 @@ const parsePost = (value: unknown): BlogPost | null => {
   }
 
   const tags = parseStringArray(value.tags);
-  const rawBlocks = Array.isArray(value.blocks) ? value.blocks : null;
-  if (!tags || !rawBlocks) {
+  if (!tags) {
     return null;
   }
 
-  const blocks = rawBlocks.map((block) => parsePostBlock(block)).filter((block): block is PostBlock => block !== null);
-  if (blocks.length === 0) {
+  const markdown = typeof value.markdown === "string" ? normalizeMarkdown(value.markdown) : "";
+  const rawBlocks = Array.isArray(value.blocks) ? value.blocks : null;
+  const legacyBlocks = rawBlocks?.map((block) => parsePostBlock(block)).filter((block): block is LegacyPostBlock => block !== null) ?? [];
+  const normalizedMarkdown = markdown || convertBlocksToMarkdown(legacyBlocks);
+
+  if (!normalizedMarkdown) {
     return null;
   }
 
@@ -124,15 +168,11 @@ const parsePost = (value: unknown): BlogPost | null => {
     category: value.category,
     date: value.date,
     tags: normalizeTags(tags),
-    blocks,
+    markdown: normalizedMarkdown,
   };
 };
 
 const ensureValidPostInput = (input: CreatePostInput): BlogPost => {
-  const normalizedBlocks = input.blocks
-    .map((block) => parsePostBlock(block))
-    .filter((block): block is PostBlock => block !== null);
-
   const normalized: BlogPost = {
     slug: slugify(input.slug),
     title: input.title.trim(),
@@ -140,7 +180,7 @@ const ensureValidPostInput = (input: CreatePostInput): BlogPost => {
     category: input.category,
     date: input.date.trim(),
     tags: normalizeTags(input.tags),
-    blocks: normalizedBlocks,
+    markdown: normalizeMarkdown(input.markdown),
   };
 
   if (!normalized.slug) {
@@ -161,8 +201,8 @@ const ensureValidPostInput = (input: CreatePostInput): BlogPost => {
   if (normalized.tags.length === 0) {
     throw new Error("At least one tag is required.");
   }
-  if (normalized.blocks.length === 0) {
-    throw new Error("At least one content block is required.");
+  if (!normalized.markdown) {
+    throw new Error("Post content cannot be empty.");
   }
 
   return normalized;
@@ -195,6 +235,7 @@ export const createPost = async (input: CreatePostInput): Promise<BlogPost> => {
 
   await setDoc(postRef, {
     ...normalizedPost,
+    contentFormat: "markdown",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -226,6 +267,7 @@ export const updatePost = async (originalSlug: string, input: CreatePostInput): 
   if (normalizedOriginalSlug === normalizedPost.slug) {
     await setDoc(originalRef, {
       ...normalizedPost,
+      contentFormat: "markdown",
       createdAt,
       updatedAt: serverTimestamp(),
     });
@@ -242,6 +284,7 @@ export const updatePost = async (originalSlug: string, input: CreatePostInput): 
   const batch = writeBatch(db);
   batch.set(nextRef, {
     ...normalizedPost,
+    contentFormat: "markdown",
     createdAt,
     updatedAt: serverTimestamp(),
   });
