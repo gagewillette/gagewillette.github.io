@@ -4,13 +4,6 @@ export const blogDescription =
 
 export type PostCategory = "life" | "project";
 
-export type PostBlock =
-  | { type: "paragraph"; text: string }
-  | { type: "heading"; text: string }
-  | { type: "quote"; text: string }
-  | { type: "list"; items: string[] }
-  | { type: "code"; code: string; language?: string };
-
 export interface BlogPost {
   slug: string;
   title: string;
@@ -18,7 +11,7 @@ export interface BlogPost {
   category: PostCategory;
   date: string;
   tags: string[];
-  blocks: PostBlock[];
+  markdown: string;
 }
 
 // Firestore is the canonical store. This empty list keeps the app bootable
