@@ -4,13 +4,13 @@ import { getFirestore, type Firestore } from "firebase/firestore";
 import { isEditorAccessAllowed } from "./editorEnvironment";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  apiKey: "AIzaSyBmTADk10HX2vVsiG0kRYLnMK_wSyklZng",
+  authDomain: "gagewilletteblogs.firebaseapp.com",
+  projectId: "gagewilletteblogs",
+  storageBucket: "gagewilletteblogs.firebasestorage.app",
+  messagingSenderId: "691942637667",
+  appId: "1:691942637667:web:a1bbe8c1a0220350163856",
+  measurementId: "G-Y13WYBXPQR",
 };
 
 const requiredFirebaseConfigValues = [
